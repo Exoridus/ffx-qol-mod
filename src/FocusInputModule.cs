@@ -29,6 +29,16 @@ public unsafe sealed class FocusInputModule : FhModule
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private delegate void d_get_controller_info(nint ptr_this, uint* buttons, uint* axes);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void d_set_input_info();
+
+    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+    private delegate uint d_get_stick_info(nint ptr_this);
+
+    private long _controller_info_calls;
+    private long _set_input_info_calls;
+    private long _get_stick_info_calls;
+
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
         _config = QolConfig.Load(Path.Combine(AppContext.BaseDirectory, "fhqol.config.json"));
@@ -38,6 +48,11 @@ public unsafe sealed class FocusInputModule : FhModule
             _logger.Error("[QoL] Could not hook GetControllerInfo; the focus-loss drift stays.");
             return false;
         }
+
+        // Survey probes: the first attempt hooked GetControllerInfo, which never fired, so the layer
+        // that actually serves input has to be identified rather than assumed.
+        new FhMethodHandle<d_set_input_info>(new FhMethodLocation(EngineAddresses.InputSetInputInfoToCurrentFrame, 0)).hook(this, h_set_input_info);
+        new FhMethodHandle<d_get_stick_info>(new FhMethodLocation(EngineAddresses.InputManagerGetStickInfo, 0)).hook(this, h_get_stick_info);
 
         _logger.Info(_config.AxisNeutral.HasValue
             ? $"[QoL] Focus fix active, neutral axis word 0x{_config.AxisNeutral.Value:X8}."
@@ -50,6 +65,8 @@ public unsafe sealed class FocusInputModule : FhModule
     {
         new FhMethodHandle<d_get_controller_info>(new FhMethodLocation(EngineAddresses.GetControllerInfo, 0))
             .chain_from(h_get_controller_info).fnptr!(ptr_this, buttons, axes);
+
+        if (++_controller_info_calls == 1) _logger.Info("[QoL] Probe: GetControllerInfo runs.");
 
         bool focused = FhUtil.get_at<int>(EngineAddresses.ODBegin) != 0;
 
@@ -83,5 +100,24 @@ public unsafe sealed class FocusInputModule : FhModule
         axes[3] = neutral;
 
         _corrections++;
+    }
+
+    private void h_set_input_info()
+    {
+        if (++_set_input_info_calls == 1) _logger.Info("[QoL] Probe: inputSetInputInfoToCurrentFrame runs.");
+
+        new FhMethodHandle<d_set_input_info>(new FhMethodLocation(EngineAddresses.InputSetInputInfoToCurrentFrame, 0))
+            .chain_from(h_set_input_info).fnptr!();
+    }
+
+    private uint h_get_stick_info(nint ptr_this)
+    {
+        uint value = new FhMethodHandle<d_get_stick_info>(new FhMethodLocation(EngineAddresses.InputManagerGetStickInfo, 0))
+            .chain_from(h_get_stick_info).fnptr!(ptr_this);
+
+        if (++_get_stick_info_calls <= 3)
+            _logger.Info($"[QoL] Probe: getStickInfo returned {value:X8} (focused={FhUtil.get_at<int>(EngineAddresses.ODBegin) != 0}).");
+
+        return value;
     }
 }

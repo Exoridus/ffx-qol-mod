@@ -47,4 +47,10 @@ public static class EngineAddresses
 
     /// <summary>int. Set while the window owns input; the engine's window-active flag.</summary>
     public const nint ODBegin = 0xF3C8F0;
+
+    /// <summary>inputSetInputInfoToCurrentFrame. Cdecl. Called from the main loop while ODBegin is set.</summary>
+    public const nint InputSetInputInfoToCurrentFrame = 0x230F90;
+
+    /// <summary>Virtuos::InputManager::getStickInfo. The accessor gameplay reads the sticks through.</summary>
+    public const nint InputManagerGetStickInfo = 0x2314C0;
 }

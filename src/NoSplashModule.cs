@@ -12,12 +12,13 @@ public unsafe sealed class NoSplashModule : FhModule
     private const uint   LoopdemoEventId = 349;
 
     /// <summary>
-    ///     How long the boot video skip stays armed. Counted in frames, so it shortens in real time
-    ///     at 60 Hz; that is intended, since the window only has to cover the boot videos.
+    ///     How long the boot video skip stays armed. Measured in real time rather than frames: a
+    ///     frame budget halves in wall-clock terms as soon as the game runs at 60 Hz, which cut the
+    ///     window short and let the later boot videos through.
     /// </summary>
-    private const ulong BootSkipFrameWindow = 300;
+    private static readonly TimeSpan BootSkipWindow = TimeSpan.FromSeconds(20);
 
-    private ulong _frames;
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
     private long  _boot_skips;
     private int   _traced;
 
@@ -75,12 +76,10 @@ public unsafe sealed class NoSplashModule : FhModule
      * writes, so the original must not run afterwards. */
     private void h_fmv_skip_poll(nint fmv)
     {
-        _frames++;
-
         FhMethodHandle<d_fmv_skip_poll> orig =
             new FhMethodHandle<d_fmv_skip_poll>(new FhMethodLocation(EngineAddresses.FmvSkipPoll, 0)).chain_from(h_fmv_skip_poll);
 
-        if (_frames >= BootSkipFrameWindow || fmv == 0) { orig.fnptr!(fmv); return; }
+        if (_clock.Elapsed > BootSkipWindow || fmv == 0) { orig.fnptr!(fmv); return; }
 
         // Only act while a movie is actually playing, or the sentinels land in an idle manager.
         if (FhUtil.get_at<int>(EngineAddresses.GMoviePlay) != 1) { orig.fnptr!(fmv); return; }
@@ -97,7 +96,7 @@ public unsafe sealed class NoSplashModule : FhModule
         FhUtil.set_at<byte>(EngineAddresses.GMovieSkipFlag, 1);
 
         _boot_skips++;
-        _logger.Info($"[QoL] Boot video skipped (count={_boot_skips}, frame={_frames}).");
+        _logger.Info($"[QoL] Boot video skipped (count={_boot_skips}, t={_clock.Elapsed.TotalSeconds:F1}s).");
     }
 
     /// <summary>True once the game is past the boot sequence, which is where these hooks stand down.</summary>
