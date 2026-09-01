@@ -41,7 +41,7 @@ public unsafe sealed class FocusInputModule : FhModule
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
-        _config = QolConfig.Load(Path.Combine(AppContext.BaseDirectory, "fhqol.config.json"));
+        _config = QolConfig.Load(QolConfig.ResolvePath());
 
         if (!new FhMethodHandle<d_get_controller_info>(new FhMethodLocation(EngineAddresses.GetControllerInfo, 0)).hook(this, h_get_controller_info))
         {

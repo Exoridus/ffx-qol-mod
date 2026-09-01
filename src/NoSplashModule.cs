@@ -36,6 +36,12 @@ public unsafe sealed class NoSplashModule : FhModule
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
+        if (!QolConfig.Load(QolConfig.ResolvePath()).SkipSplash)
+        {
+            _logger.Info("[QoL] Splash skip disabled by config; the boot sequence and the opening demo play.");
+            return true;
+        }
+
         bool ok = new FhMethodHandle<d_atel_event_setup>(new FhMethodLocation(EngineAddresses.AtelEventSetUp, 0)).hook(this, h_atel_event_setup)
                && new FhMethodHandle<d_need_show_japan_logo>(new FhMethodLocation(EngineAddresses.NeedShowJapanLogo, 0)).hook(this, h_need_show_japan_logo)
                && new FhMethodHandle<d_fmv_skip_poll>(new FhMethodLocation(EngineAddresses.FmvSkipPoll, 0)).hook(this, h_fmv_skip_poll);
