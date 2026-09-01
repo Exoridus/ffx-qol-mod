@@ -115,9 +115,51 @@ public unsafe sealed class FocusInputModule : FhModule
         uint value = new FhMethodHandle<d_get_stick_info>(new FhMethodLocation(EngineAddresses.InputManagerGetStickInfo, 0))
             .chain_from(h_get_stick_info).fnptr!(ptr_this);
 
+        bool focused = FhUtil.get_at<int>(EngineAddresses.ODBegin) != 0;
+
         if (++_get_stick_info_calls <= 3)
-            _logger.Info($"[QoL] Probe: getStickInfo returned {value:X8} (focused={FhUtil.get_at<int>(EngineAddresses.ODBegin) != 0}).");
+            _logger.Info($"[QoL] Probe: getStickInfo returned {value:X8} (focused={focused}).");
+
+        // GetControllerInfo never fires in this build - its probe has not logged once - so the axis
+        // packing has to come from the layer that does. getStickInfo returns the same value on every
+        // call, which is the shape of a pointer to a static block rather than of packed axis data,
+        // so the block behind it is what the neutral word has to be read from.
+        //
+        // Range-checked against the image before dereferencing: if the return turns out not to be a
+        // pointer, the probe reports that and reads nothing, rather than faulting on the input path.
+        if (focused && _stick_blocks_logged < 8)
+        {
+            if (value < ImageBase || value >= ImageEnd)
+            {
+                if (_stick_blocks_logged++ == 0)
+                    _logger.Info($"[QoL] getStickInfo returned {value:X8}, outside the image - not a pointer, not dereferenced.");
+
+                return value;
+            }
+
+            uint* block = (uint*)(nint)value;
+            _stick_blocks_logged++;
+            _logger.Info($"[QoL] Stick block at {value:X8} while focused: " +
+                         $"{block[0]:X8} {block[1]:X8} {block[2]:X8} {block[3]:X8} " +
+                         $"{block[4]:X8} {block[5]:X8} {block[6]:X8} {block[7]:X8}");
+        }
 
         return value;
     }
+
+    /// <summary>
+    ///     The loaded image, used only to decide whether a returned value can be dereferenced.
+    ///
+    ///     Read from the process rather than assumed. A crash dump of this build put FFX.exe at
+    ///     0x00440000 spanning 0x2380000 bytes, so the preferred base and the Ghidra image base are
+    ///     both wrong at runtime, and a hardcoded window would reject live pointers or accept dead
+    ///     ones depending on where the loader put the image.
+    /// </summary>
+    private static readonly uint ImageBase =
+        (uint)(Process.GetCurrentProcess().MainModule?.BaseAddress ?? 0x400000);
+
+    private static readonly uint ImageEnd =
+        ImageBase + (uint)(Process.GetCurrentProcess().MainModule?.ModuleMemorySize ?? 0xA40000);
+
+    private int _stick_blocks_logged;
 }
