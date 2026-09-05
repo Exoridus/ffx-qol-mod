@@ -1,0 +1,6 @@
+{
+  "fhqol.splash.name": "Programmstart",
+  "fhqol.splash.desc": "Was das Spiel zwischen Start und Titelbildschirm tut.",
+  "fhqol.splash.skip.name": "Startvideos überspringen",
+  "fhqol.splash.skip.desc": "Startet direkt zum Titelbildschirm: überspringt die Logo-Videos, die Speicherkartenprüfung und die Eröffnungsdemo. Ausschalten, um das Intro wieder zu sehen."
+}

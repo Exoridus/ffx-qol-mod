@@ -1,0 +1,6 @@
+{
+  "fhqol.launcher.name": "Launcher",
+  "fhqol.launcher.desc": "Der mitgelieferte Square-Enix-Launcher.",
+  "fhqol.launcher.suppress.name": "Launcher nach Beenden geschlossen halten",
+  "fhqol.launcher.suppress.desc": "Verhindert, dass das Spiel beim Schließen den Square-Enix-Launcher erneut öffnet."
+}

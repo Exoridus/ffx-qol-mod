@@ -1,0 +1,6 @@
+{
+  "fhqol.launcher.name": "Launcher",
+  "fhqol.launcher.desc": "The Square Enix launcher that ships with the game.",
+  "fhqol.launcher.suppress.name": "Keep Launcher Closed After Exit",
+  "fhqol.launcher.suppress.desc": "Stops the game reopening the Square Enix launcher when you close it."
+}

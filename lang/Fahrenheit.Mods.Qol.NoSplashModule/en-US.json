@@ -1,0 +1,6 @@
+{
+  "fhqol.splash.name": "Startup",
+  "fhqol.splash.desc": "What the game does between launching and the title screen.",
+  "fhqol.splash.skip.name": "Skip Startup Splash Screens",
+  "fhqol.splash.skip.desc": "Boots straight to the title screen: skips the logo videos, the memory-card check and the opening demo. Turn off to watch the intro again."
+}

@@ -1,165 +1,148 @@
 namespace Fahrenheit.Mods.Qol;
 
 /// <summary>
-///     Keeps the analog sticks neutral while the window does not own input.
+///     Keeps the pad neutral while the window does not own input.
 ///
 ///     <para>
-///     The engine's own handling is the bug: while its window-active flag is clear,
-///     <c>AsyncControllerTaskManager::GetControllerInfo</c> writes zeroes to both the button word
-///     and the four axis words. Zero is correct for buttons, where it means nothing is pressed. For
-///     an axis whose rest position sits in the middle of its range, zero is full deflection, which
-///     is why the character walks and the menu cursor climbs while the game is in the background.
+///     The symptom is a menu cursor that walks upward, and a character that walks off on the field,
+///     from the moment the window loses focus until it regains it - with nothing held down. That
+///     rules out a frozen input state, which with nothing pressed would read as neutral, and points
+///     at a zeroed analog byte: the pad's analog axes are bytes whose rest position is 0x80, so a
+///     zero is full deflection rather than centre.
 ///     </para>
 ///
 ///     <para>
-///     The neutral word is not hardcoded because the axis packing has not been read off the running
-///     game yet. Until <see cref="QolConfig.AxisNeutral"/> is set, this module only reports what the
-///     axes hold while focused, which is what the value has to be derived from.
+///     The engine names that rest position itself. <c>FUN_00888f70</c> and <c>FUN_00888fa0</c> are
+///     its own neutral writers and both store <c>0x80808080</c> into the four analog bytes, which is
+///     also what the float-to-byte conversion produces: <c>FUN_00889a10</c> is
+///     <c>-0x80 - (char)round(f * -127.0)</c>, so 0.0f maps to 0x80 and the usable range is 0x01 to
+///     0xFF around it. This module writes the same word rather than a value of its own.
+///     </para>
+///
+///     <para>
+///     The hook sits on <c>TkScanControler</c>, which the main loop calls once per frame and which
+///     pushes one sample per port into a four-slot history ring. Neutralising the pad record before
+///     that push is what matters: the script-facing snapshot in <c>FUN_00871d10</c> ORs the ring over
+///     every frame since the last sync, so a bad sample keeps being reported as held rather than
+///     lapsing after one frame.
+///     </para>
+///
+///     <para>
+///     Focus comes from Win32. The engine has no window-active flag - <c>GetForegroundWindow</c>,
+///     <c>GetActiveWindow</c> and <c>WM_ACTIVATE</c> appear nowhere in the decompilation, the window
+///     belongs to Phyre's <c>PApplication</c>, and the global a previous attempt used for it,
+///     <c>ODBegin</c>, is written only by <c>TOBtlCtrlLuluLimitWindow</c>: it is Lulu's overdrive
+///     input window, not the window state.
 ///     </para>
 /// </summary>
 [FhLoad(FhGameId.FFX)]
 public unsafe sealed class FocusInputModule : FhModule
 {
-    private QolConfig _config = new();
+    private readonly FhSettingToggle _neutralize = new("fhqol.focus.neutralize", true);
+    private readonly FhSettingToggle _survey     = new("fhqol.focus.survey",     false);
 
-    private bool _was_focused = true;
-    private long _corrections;
+    private long _scans;
+    private long _neutralized;
     private int  _samples_logged;
-
-    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
-    private delegate void d_get_controller_info(nint ptr_this, uint* buttons, uint* axes);
+    private bool _was_focused = true;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate void d_set_input_info();
+    private delegate void d_tk_scan_controler();
 
-    [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
-    private delegate uint d_get_stick_info(nint ptr_this);
-
-    private long _controller_info_calls;
-    private long _set_input_info_calls;
-    private long _get_stick_info_calls;
+    public FocusInputModule()
+    {
+        settings = new FhSettingsCategory("fhqol.focus", [_neutralize, _survey]);
+    }
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
-        _config = QolConfig.Load(QolConfig.ResolvePath());
-
-        if (!new FhMethodHandle<d_get_controller_info>(new FhMethodLocation(EngineAddresses.GetControllerInfo, 0)).hook(this, h_get_controller_info))
+        if (!new FhMethodHandle<d_tk_scan_controler>(new FhMethodLocation(EngineAddresses.TkScanControler, 0)).hook(this, h_tk_scan_controler))
         {
-            _logger.Error("[QoL] Could not hook GetControllerInfo; the focus-loss drift stays.");
+            _logger.Error("[QoL] Could not hook TkScanControler; the focus-loss drift stays.");
             return false;
         }
 
-        // Survey probes: the first attempt hooked GetControllerInfo, which never fired, so the layer
-        // that actually serves input has to be identified rather than assumed.
-        new FhMethodHandle<d_set_input_info>(new FhMethodLocation(EngineAddresses.InputSetInputInfoToCurrentFrame, 0)).hook(this, h_set_input_info);
-        new FhMethodHandle<d_get_stick_info>(new FhMethodLocation(EngineAddresses.InputManagerGetStickInfo, 0)).hook(this, h_get_stick_info);
-
-        _logger.Info(_config.AxisNeutral.HasValue
-            ? $"[QoL] Focus fix active, neutral axis word 0x{_config.AxisNeutral.Value:X8}."
-            : "[QoL] Focus fix in survey mode: axis words are logged while focused. Set axis_neutral in fhqol.config.json to enable the correction.");
-
+        _logger.Info("[QoL] Focus neutralisation hooked on TkScanControler.");
         return true;
     }
 
-    private void h_get_controller_info(nint ptr_this, uint* buttons, uint* axes)
+    private void h_tk_scan_controler()
     {
-        new FhMethodHandle<d_get_controller_info>(new FhMethodLocation(EngineAddresses.GetControllerInfo, 0))
-            .chain_from(h_get_controller_info).fnptr!(ptr_this, buttons, axes);
+        _scans++;
 
-        if (++_controller_info_calls == 1) _logger.Info("[QoL] Probe: GetControllerInfo runs.");
+        bool focused = WindowOwnsInput();
 
-        bool focused = FhUtil.get_at<int>(EngineAddresses.ODBegin) != 0;
-
-        if (focused)
+        if (!focused && _neutralize.get())
         {
-            // One sample per regained focus is enough to read the packing without flooding the log.
-            if (!_was_focused || _samples_logged < 3)
-            {
-                if (axes != null && _samples_logged < 16)
-                {
-                    _samples_logged++;
-                    _logger.Info($"[QoL] Axes while focused: {axes[0]:X8} {axes[1]:X8} {axes[2]:X8} {axes[3]:X8}");
-                }
-            }
+            for (var port = 0; port < EngineAddresses.PadRecordCount; port++)
+                NeutralizePad(PadRecord(port));
 
-            _was_focused = true;
-            return;
+            _neutralized++;
         }
 
-        if (_was_focused)
+        if (_survey.get() && focused && _samples_logged < 8)
         {
-            _was_focused = false;
-            _logger.Info("[QoL] Focus lost.");
+            var pad = PadRecord(0);
+            _samples_logged++;
+            _logger.Info($"[QoL] Pad 0 while focused: analog {*(uint*)(pad + 0x84):X8} {*(uint*)(pad + 0x90):X8} "
+                       + $"buttons {*(ushort*)(pad + 0x98):X4} {*(ushort*)(pad + 0x9a):X4}");
         }
 
-        if (_config.AxisNeutral is not uint neutral || axes == null) return;
-
-        axes[0] = neutral;
-        axes[1] = neutral;
-        axes[2] = neutral;
-        axes[3] = neutral;
-
-        _corrections++;
-    }
-
-    private void h_set_input_info()
-    {
-        if (++_set_input_info_calls == 1) _logger.Info("[QoL] Probe: inputSetInputInfoToCurrentFrame runs.");
-
-        new FhMethodHandle<d_set_input_info>(new FhMethodLocation(EngineAddresses.InputSetInputInfoToCurrentFrame, 0))
-            .chain_from(h_set_input_info).fnptr!();
-    }
-
-    private uint h_get_stick_info(nint ptr_this)
-    {
-        uint value = new FhMethodHandle<d_get_stick_info>(new FhMethodLocation(EngineAddresses.InputManagerGetStickInfo, 0))
-            .chain_from(h_get_stick_info).fnptr!(ptr_this);
-
-        bool focused = FhUtil.get_at<int>(EngineAddresses.ODBegin) != 0;
-
-        if (++_get_stick_info_calls <= 3)
-            _logger.Info($"[QoL] Probe: getStickInfo returned {value:X8} (focused={focused}).");
-
-        // GetControllerInfo never fires in this build - its probe has not logged once - so the axis
-        // packing has to come from the layer that does. getStickInfo returns the same value on every
-        // call, which is the shape of a pointer to a static block rather than of packed axis data,
-        // so the block behind it is what the neutral word has to be read from.
-        //
-        // Range-checked against the image before dereferencing: if the return turns out not to be a
-        // pointer, the probe reports that and reads nothing, rather than faulting on the input path.
-        if (focused && _stick_blocks_logged < 8)
+        if (focused != _was_focused)
         {
-            if (value < ImageBase || value >= ImageEnd)
-            {
-                if (_stick_blocks_logged++ == 0)
-                    _logger.Info($"[QoL] getStickInfo returned {value:X8}, outside the image - not a pointer, not dereferenced.");
-
-                return value;
-            }
-
-            uint* block = (uint*)(nint)value;
-            _stick_blocks_logged++;
-            _logger.Info($"[QoL] Stick block at {value:X8} while focused: " +
-                         $"{block[0]:X8} {block[1]:X8} {block[2]:X8} {block[3]:X8} " +
-                         $"{block[4]:X8} {block[5]:X8} {block[6]:X8} {block[7]:X8}");
+            _was_focused = focused;
+            _logger.Info(focused
+                ? $"[QoL] Focus regained after {_neutralized} neutralised scan(s)."
+                : "[QoL] Focus lost; holding the pad neutral.");
         }
 
-        return value;
+        new FhMethodHandle<d_tk_scan_controler>(new FhMethodLocation(EngineAddresses.TkScanControler, 0))
+            .chain_from(h_tk_scan_controler).fnptr!();
     }
 
     /// <summary>
-    ///     The loaded image, used only to decide whether a returned value can be dereferenced.
-    ///
-    ///     Read from the process rather than assumed. A crash dump of this build put FFX.exe at
-    ///     0x00440000 spanning 0x2380000 bytes, so the preferred base and the Ghidra image base are
-    ///     both wrong at runtime, and a hardcoded window would reject live pointers or accept dead
-    ///     ones depending on where the loader put the image.
+    ///     The pad record for one port. FUN_00888e30 is pure address arithmetic on a static array,
+    ///     <c>(port + pad) * 0x100 + 0x01330248</c>, so there is nothing to call.
     /// </summary>
-    private static readonly uint ImageBase =
-        (uint)(Process.GetCurrentProcess().MainModule?.BaseAddress ?? 0x400000);
+    private static byte* PadRecord(int port) =>
+        FhUtil.ptr_at<byte>(EngineAddresses.PadRecordBase + port * EngineAddresses.PadRecordStride);
 
-    private static readonly uint ImageEnd =
-        ImageBase + (uint)(Process.GetCurrentProcess().MainModule?.ModuleMemorySize ?? 0xA40000);
+    /// <summary>
+    ///     Exactly what FUN_00888f70 writes. Kept field for field rather than reduced to the two
+    ///     analog words: the two zeroed words between them are part of the engine's own idea of a
+    ///     neutral pad, and guessing which of the four matter is how a layout gets mis-read.
+    /// </summary>
+    private static void NeutralizePad(byte* pad)
+    {
+        *(uint*)(pad + 0x84) = 0x80808080;
+        *(uint*)(pad + 0x88) = 0;
+        *(uint*)(pad + 0x8c) = 0;
+        *(uint*)(pad + 0x90) = 0x80808080;
 
-    private int _stick_blocks_logged;
+        // The button words FUN_00889700 reads out of the record on its way into the ring slot.
+        *(ushort*)(pad + 0x98) = 0;
+        *(ushort*)(pad + 0x9a) = 0;
+    }
+
+    /// <summary>
+    ///     Whether the foreground window belongs to this process. Comparing against the process's
+    ///     own MainWindowHandle would be narrower and wrong: the game has more than one top-level
+    ///     window over its lifetime, and the handle is cached by the framework.
+    /// </summary>
+    private static bool WindowOwnsInput()
+    {
+        nint foreground = GetForegroundWindow();
+        if (foreground == 0) return false;
+
+        _ = GetWindowThreadProcessId(foreground, out uint pid);
+        return pid == CurrentProcessId;
+    }
+
+    private static readonly uint CurrentProcessId = (uint)Environment.ProcessId;
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
 }

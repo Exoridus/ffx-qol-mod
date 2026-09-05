@@ -39,18 +39,21 @@ public static class EngineAddresses
     // --- Focus handling ---
 
     /// <summary>
-    ///     AsyncControllerTaskManager::GetControllerInfo(button_word*, axes*). Thiscall.
-    ///     While ODBegin is clear it writes zeroes to both outputs, which is correct for the buttons
-    ///     and wrong for the axes, whose neutral position is the middle of their range.
+    ///     TkScanControler. Cdecl, no arguments. The main loop calls it once per frame; it pushes
+    ///     one sample per port into a four-slot input history ring through FUN_00889700.
     /// </summary>
-    public const nint GetControllerInfo = 0x28CE70;
+    public const nint TkScanControler = 0x489350;
 
-    /// <summary>int. Set while the window owns input; the engine's window-active flag.</summary>
-    public const nint ODBegin = 0xF3C8F0;
+    /// <summary>
+    ///     First pad record. FUN_00888e30 is address arithmetic on a static array,
+    ///     (port + pad) * 0x100 + 0x01330248, so the record needs no call to reach.
+    ///     Analog axes are bytes at +0x84 and +0x90 with 0x80 as the rest position; the button
+    ///     words FUN_00889700 copies into the ring slot are at +0x98 and +0x9a.
+    /// </summary>
+    public const nint PadRecordBase = 0xF30248;
 
-    /// <summary>inputSetInputInfoToCurrentFrame. Cdecl. Called from the main loop while ODBegin is set.</summary>
-    public const nint InputSetInputInfoToCurrentFrame = 0x230F90;
+    public const int PadRecordStride = 0x100;
 
-    /// <summary>Virtuos::InputManager::getStickInfo. The accessor gameplay reads the sticks through.</summary>
-    public const nint InputManagerGetStickInfo = 0x2314C0;
+    /// <summary>TkScanControler iterates ports 0..1.</summary>
+    public const int PadRecordCount = 2;
 }

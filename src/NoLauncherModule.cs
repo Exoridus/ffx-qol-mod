@@ -16,7 +16,14 @@ public unsafe sealed class NoLauncherModule : FhModule
         [MarshalAs(UnmanagedType.LPWStr)] string? directory,
         int show_cmd);
 
+    private readonly FhSettingToggle _enabled = new("fhqol.launcher.suppress", true);
+
     private long _suppressed;
+
+    public NoLauncherModule()
+    {
+        settings = new FhSettingsCategory("fhqol.launcher", [_enabled]);
+    }
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
@@ -32,7 +39,9 @@ public unsafe sealed class NoLauncherModule : FhModule
 
     private nint h_shell_execute_w(nint hwnd, string? operation, string? file, string? parameters, string? directory, int show_cmd)
     {
-        if (file != null && file.EndsWith("LAUNCHER.exe", StringComparison.OrdinalIgnoreCase))
+        // Checked per call rather than at init, so turning the setting off releases the
+        // suppression without a restart. The hook stays installed either way.
+        if (_enabled.get() && file != null && file.EndsWith("LAUNCHER.exe", StringComparison.OrdinalIgnoreCase))
         {
             _suppressed++;
             _logger.Info($"[QoL] Suppressed launcher relaunch (count={_suppressed}).");

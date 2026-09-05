@@ -1,0 +1,8 @@
+{
+  "fhqol.focus.name": "Window Focus",
+  "fhqol.focus.desc": "What the game does with controller input while another window is in front.",
+  "fhqol.focus.neutralize.name": "Ignore Controls While Window Is Unfocused",
+  "fhqol.focus.neutralize.desc": "Stops the menu cursor scrolling and the character walking off on their own after you switch away from the game.",
+  "fhqol.focus.survey.name": "Log Pad State While Focused",
+  "fhqol.focus.survey.desc": "Diagnostic only. Writes the first few analog and button words to the log so the pad layout can be verified in a running game."
+}

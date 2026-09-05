@@ -18,6 +18,8 @@ public unsafe sealed class NoSplashModule : FhModule
     /// </summary>
     private static readonly TimeSpan BootSkipWindow = TimeSpan.FromSeconds(20);
 
+    private readonly FhSettingToggle _enabled = new("fhqol.splash.skip", true);
+
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private long  _boot_skips;
     private int   _traced;
@@ -34,9 +36,16 @@ public unsafe sealed class NoSplashModule : FhModule
     [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
     private delegate void d_fmv_skip_poll(nint ptr_this);
 
+    public NoSplashModule()
+    {
+        settings = new FhSettingsCategory("fhqol.splash", [_enabled]);
+    }
+
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
-        if (!QolConfig.Load(QolConfig.ResolvePath()).SkipSplash)
+        // Read once at init: the hooks are installed or they are not, and toggling the setting
+        // mid-run cannot un-skip a boot sequence that has already happened.
+        if (!_enabled.get())
         {
             _logger.Info("[QoL] Splash skip disabled by config; the boot sequence and the opening demo play.");
             return true;

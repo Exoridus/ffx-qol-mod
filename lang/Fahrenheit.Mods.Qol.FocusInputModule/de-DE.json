@@ -1,0 +1,8 @@
+{
+  "fhqol.focus.name": "Fensterfokus",
+  "fhqol.focus.desc": "Was das Spiel mit Controllereingaben tut, während ein anderes Fenster im Vordergrund ist.",
+  "fhqol.focus.neutralize.name": "Eingaben ignorieren, wenn das Fenster nicht im Fokus ist",
+  "fhqol.focus.neutralize.desc": "Verhindert, dass der Menücursor weiterläuft und die Figur von allein losgeht, nachdem du aus dem Spiel herausgewechselt hast.",
+  "fhqol.focus.survey.name": "Pad-Zustand bei Fokus protokollieren",
+  "fhqol.focus.survey.desc": "Nur zur Diagnose. Schreibt die ersten Analog- und Buttonworte ins Log, damit sich das Pad-Layout im laufenden Spiel prüfen lässt."
+}
