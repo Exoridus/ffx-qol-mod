@@ -4,7 +4,7 @@
   "Desc": "Skips the boot splash sequence, stops the launcher reopening when you close the game, and keeps the analog sticks neutral while the window is not focused.",
   "Authors": "Thomas",
   "Version": "0.1.0",
-  "Link": "",
+  "Link": "https://github.com/Exoridus/ffx-qol-mod",
   "Dependencies": [],
   "LoadAfter": [],
   "Flags": "NONE"

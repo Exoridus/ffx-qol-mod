@@ -1,86 +1,66 @@
-# fahrenheit-qol-mod
+# FFX Quality of Life
 
-Three small conveniences for Final Fantasy X HD Remaster, in one Fahrenheit mod.
+[![CI](https://github.com/Exoridus/ffx-qol-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/Exoridus/ffx-qol-mod/actions/workflows/ci.yml)
 
-- **NoSplash** takes the boot sequence straight to the title screen: the splash
-  events are redirected, the Japan-logo gate is answered no, and the boot videos
-  are skipped without input.
-- **NoLauncher** stops the engine reopening `FFX&X-2_LAUNCHER.exe` when the game
-  window is closed.
-- **FocusInput** holds the pad neutral while the window does not own input, so
-  the menu cursor stops scrolling and the character stops walking off.
-
-## The focus bug
-
-The symptom is a menu cursor that walks upward and a character that walks off on
-the field, from the moment the window loses focus until it regains it, **with
-nothing held down**. That rules out a frozen input state, which with nothing
-pressed would read as neutral, and points at a zeroed analog byte: the pad's
-analog axes are bytes whose rest position is `0x80`, so a zero is full deflection
-rather than centre.
-
-The engine names that rest position itself. `FUN_00888f70` and `FUN_00888fa0` are
-its own neutral writers and both store `0x80808080` into the four analog bytes,
-which is also what the float-to-byte conversion produces - `FUN_00889a10` is
-`-0x80 - (char)round(f * -127.0)`, so `0.0f` maps to `0x80`. This module writes
-the same word rather than a value of its own.
-
-The hook sits on `TkScanControler`, which the main loop calls once per frame and
-which pushes one sample per port into a four-slot input history ring. Doing it
-there is what matters: the script-facing snapshot in `FUN_00871d10` ORs the ring
-over every frame since the last sync, so a bad sample keeps being reported as
-held rather than lapsing after one frame.
-
-Focus comes from Win32, because the engine has no window-active flag:
-`GetForegroundWindow`, `GetActiveWindow` and `WM_ACTIVATE` appear nowhere in the
-decompilation and the window belongs to Phyre's `PApplication`.
-
-### What this replaced, and why
-
-The first attempt hooked `AsyncControllerTaskManager::GetControllerInfo`, which
-zeroes its outputs while `ODBegin` is clear, and read `ODBegin` as the
-window-active flag. Both halves were wrong.
-
-`ODBegin` is written at exactly two places, both inside
-`TOBtlCtrlLuluLimitWindow`: it is **Lulu's overdrive input window**, not the
-window state. And `updateFFX` calls `inputSetInputInfoToCurrentFrame` only while
-`ODBegin != 0`, so the whole `Virtuos::InputManager` path - `GetControllerInfo`
-included - runs only during that overdrive. The hook was installed correctly and
-never fired once.
-
-The `axis_neutral` setting that attempt asked for is gone with it. Those axes are
-floats, and `0.0f` is already centre; the byte layer is where zero means
-deflection.
-
-## Settings
-
-All three corrections are on by default and switch in Fahrenheit's own settings
-panel - the mod no longer carries a config file of its own.
-
-| Setting | Default |
-| --- | --- |
-| Skip Startup Splash Screens | on |
-| Keep Launcher Closed After Exit | on |
-| Ignore Controls While Window Is Unfocused | on |
-| Log Pad State While Focused | off, diagnostic |
-
-Labels and descriptions live in `lang/<module type name>/<locale>.json`; en-US
-and de-DE ship.
-
-## Build
-
-```powershell
-pwsh tools/bootstrap.ps1
-pwsh build.ps1 -Deploy
-```
+Three independently switchable conveniences for Final Fantasy X HD Remaster, loaded by Fahrenheit.
 
 ## Status
 
-Builds. NoSplash and NoLauncher are ports of implementations that were verified
-working on this game build (`fahrenheit-nosplash-mod`, `fahrenheit-nolauncher-mod`,
-and the bundled copy in `fahrenheit-parry-mod`). FocusInput is new and has not
-been run yet.
+**Work in progress / experimental preview.** A successful build verifies compilation and packaging, not complete in-game compatibility. Final Fantasy X only; Final Fantasy X-2 is unsupported. Keep a backup of your saves and report the game build, scene and enabled settings when filing an issue.
 
-Sibling: `fahrenheit-fps60-mod`. Kept separate on purpose, since a global retimer
-and three conveniences have nothing to do with each other and should not share a
-failure mode.
+## Features
+
+- **NoSplash:** skips the startup splash sequence and boot videos.
+- **NoLauncher:** prevents the launcher from reopening when the game closes.
+- **FocusInput:** neutralizes controller input while the game window is unfocused.
+
+Settings and diagnostic pad logging are available in Fahrenheit's settings panel. English and German labels are included.
+
+## Requirements
+
+- Windows and a legitimate installation of Final Fantasy X HD Remaster.
+- [Fahrenheit](https://github.com/Fahrenheit-Modding/Fahrenheit), compatible with the revision pinned in `fahrenheit.release.ref`.
+- The mod is a Windows x86 managed plugin, not a standalone executable. Fahrenheit provides its runtime and loader dependencies.
+
+## Installation
+
+1. Install Fahrenheit following its upstream instructions.
+2. Download the ZIP and its SHA-256 checksum from [Releases](https://github.com/Exoridus/ffx-qol-mod/releases).
+3. Extract the ZIP into the game's `fahrenheit/` directory. The resulting path must be `fahrenheit/mods/fhqol/fhqol.dll`.
+4. Add `fhqol` on its own line to `fahrenheit/mods/loadorder`.
+5. Launch the game and adjust the mod's settings in Fahrenheit.
+
+To uninstall, close the game, remove that loadorder entry and remove `fahrenheit/mods/fhqol/`. Do not overwrite the game's executable or data archives.
+
+Verify the ZIP with `Get-FileHash <downloaded.zip> -Algorithm SHA256` and compare the value with the `.sha256` file.
+
+## Build from source
+
+Requires Git, PowerShell 7 and the .NET 10 SDK selected by `global.json`.
+
+```powershell
+git clone https://github.com/Exoridus/ffx-qol-mod.git
+cd ffx-qol-mod
+pwsh tools/bootstrap.ps1
+pwsh build.ps1 -Configuration Release -OutDir .release/stage
+```
+
+Bootstrap checks out the pinned public Fahrenheit source. No game installation or private sibling repository is required to compile. `-Deploy` is an optional local convenience with a machine-specific destination in `build.ps1`; use staged output for other installations.
+
+## Releases and CI
+
+CI builds on Windows and exercises the same package and release-note scripts used by releases. The ZIP contains only `mods/fhqol/`: the mod DLL, manifest, dependency metadata and localization files. Fahrenheit itself and game assets are not bundled.
+
+Maintainers set the manifest version, merge to `main`, then dispatch:
+
+```powershell
+gh workflow run release.yml -R Exoridus/ffx-qol-mod -f version=v<VERSION> -f dry_run=true
+```
+
+Omit `dry_run` to publish an experimental prerelease with a ZIP and SHA-256 file. The version must match the manifest; the workflow creates its tag only after building and packaging succeed.
+
+## Related projects
+
+- [Fahrenheit Parry Mod](https://github.com/Exoridus/fahrenheit-parry-mod)
+- [FFX Quality of Life](https://github.com/Exoridus/ffx-qol-mod)
+- [FFX FPS Unlock](https://github.com/Exoridus/ffx-fpsunlock-mod)
