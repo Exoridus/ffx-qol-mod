@@ -23,6 +23,14 @@ public static class EngineAddresses
     /// </summary>
     public const nint OpeningScreenActive = 0x260580;
 
+    /// <summary>
+    ///     The ATEL script getter behind the Common namespace's pressed-buttons query, function id
+    ///     0x0044. Cdecl, no arguments, returns a ushort. A pure getter: it reads the engine's
+    ///     current button word and translates it through the key-assignment table, with no side
+    ///     effect of its own.
+    /// </summary>
+    public const nint AtelPressedButtons = 0x45D350;
+
     // --- Focus handling ---
 
     /// <summary>
