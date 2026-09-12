@@ -41,10 +41,33 @@ public unsafe sealed class FocusInputModule : FhModule
     private readonly FhSettingToggle _neutralize = new("fhqol.focus.neutralize", true);
     private readonly FhSettingToggle _survey     = new("fhqol.focus.survey",     false);
 
+    /// <summary>
+    ///     How many scans after focus returns still get a neutral pad written.
+    ///
+    ///     <para>
+    ///     Stopping on the first focused scan let exactly one bad sample through, and it read as a
+    ///     fresh press upward. TkScanControler only copies the pad record into the ring; the record
+    ///     itself is filled elsewhere, by the input poll, and while the window is inactive it keeps
+    ///     whatever the system wrote last - a zeroed analog byte, which is full deflection. The
+    ///     first scan after focus returns therefore runs before the first fresh poll and pushes that
+    ///     stale value, from which the ring derives a just-pressed word.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Three scans rather than one: the poll and the scan are not ordered against each other,
+    ///     and the ring's own snapshot ORs together every frame since the last sync, so a single
+    ///     frame of margin would leave the timing to chance. The cost is that a press within the
+    ///     first 100 ms of regaining focus is dropped, which is the same input a player is not
+    ///     making yet.
+    ///     </para>
+    /// </summary>
+    private const int RefocusGraceScans = 3;
+
     private long _scans;
     private long _neutralized;
     private int  _samples_logged;
     private bool _was_focused = true;
+    private int  _refocus_grace;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void d_tk_scan_controler();
@@ -72,7 +95,10 @@ public unsafe sealed class FocusInputModule : FhModule
 
         bool focused = WindowOwnsInput();
 
-        if (!focused && _neutralize.get())
+        if (!focused) _refocus_grace = RefocusGraceScans;
+        else if (_refocus_grace > 0) _refocus_grace--;
+
+        if ((!focused || _refocus_grace > 0) && _neutralize.get())
         {
             for (var port = 0; port < EngineAddresses.PadRecordCount; port++)
                 NeutralizePad(PadRecord(port));
