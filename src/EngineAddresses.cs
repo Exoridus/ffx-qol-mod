@@ -89,9 +89,17 @@ public static class EngineAddresses
     public const nint SgSetMuteSound = 0x421D80;
 
     /// <summary>
-    ///     inputIsPressButton(mask). Cdecl, returns non-zero while any bit of the mask is held.
-    ///     Reads the engine's current button word, so it is already past key assignment and pad
+    ///     inputIsPressButton(mask). Cdecl, returns non-zero on the one scan in which a bit of the
+    ///     mask goes down: InputManager::isPressButton tests the previous word clear and the current
+    ///     word set. Reads the engine's button words, so it is already past key assignment and pad
     ///     abstraction. The shipped booster polls it with 0x10000.
     /// </summary>
     public const nint InputIsPressButton = 0x230EA0;
+
+    /// <summary>
+    ///     inputIsHoldButton(mask). Cdecl, returns non-zero while any bit of the mask is down:
+    ///     InputManager::isHoldButton is the current word and the mask, nothing else. This is the
+    ///     one to poll for a hold; the press variant above answers for a single scan.
+    /// </summary>
+    public const nint InputIsHoldButton = 0x230E80;
 }

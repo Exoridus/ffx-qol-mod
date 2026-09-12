@@ -58,14 +58,15 @@ public unsafe sealed class FastForwardModule : FhModule
     private readonly FhSettingNumber<float> _factor = new("fhqol.ff.factor", 2.0f, 1.0f, 4.0f, 0.5f);
 
     /// <summary>
-    ///     Which button to hold, as a mask for the engine's own button word. The default is the one
-    ///     the shipped booster polls, which is also the one already bound to speeding up, so it needs
-    ///     no key assignment of its own.
+    ///     Which button to hold, as a mask for the engine's own button word. The default is R2 as
+    ///     the engine reports it, two bits that go down together (measured 2026-09-12: pressing R2
+    ///     alone logs 0x4000002). The shipped booster's own 0x10000 is not used, because that bit
+    ///     is already bound to speeding up where the booster allows it.
     ///
     ///     Turn <c>fhqol.ff.survey</c> on for one run to pick a different button: it logs the raw
     ///     word whenever it changes, so pressing the intended button once names its bit.
     /// </summary>
-    private readonly FhSettingNumber<int> _button = new("fhqol.ff.button_mask", 0x10000, 0, int.MaxValue, 1);
+    private readonly FhSettingNumber<int> _button = new("fhqol.ff.button_mask", 0x4000002, 0, int.MaxValue, 1);
 
     private bool _held;
     private bool _muted;
@@ -85,6 +86,9 @@ public unsafe sealed class FastForwardModule : FhModule
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate byte d_input_is_press_button(int mask);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate byte d_input_is_hold_button(int mask);
 
     public FastForwardModule()
     {
@@ -170,7 +174,9 @@ public unsafe sealed class FastForwardModule : FhModule
         int mask = _button.get();
         if (mask == 0) return false;
 
-        var poll = new FhMethodHandle<d_input_is_press_button>(new FhMethodLocation(EngineAddresses.InputIsPressButton, 0)).fnptr;
+        // The hold query, not the press one: isPressButton answers for the single scan in which
+        // the button goes down, which made the speed-up last one tick.
+        var poll = new FhMethodHandle<d_input_is_hold_button>(new FhMethodLocation(EngineAddresses.InputIsHoldButton, 0)).fnptr;
         return poll is not null && poll(mask) != 0;
     }
 
