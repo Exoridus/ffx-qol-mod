@@ -51,4 +51,47 @@ public static class EngineAddresses
 
     /// <summary>TkScanControler iterates ports 0..1.</summary>
     public const int PadRecordCount = 2;
+
+    // --- Speed control ---
+
+    /// <summary>
+    ///     SpdCtrl_ScaleElapsedTime(float). Cdecl. The first call Sg_MainLoop makes, and the whole
+    ///     of the shipped speed booster: it returns the elapsed time the pass is given, multiplied
+    ///     by a factor from the three-entry table at VA 0x00C38E14 (1.0, 2.0, 4.0) indexed by the
+    ///     global the pause menu cycles. Everything downstream - the pass count, and with it how
+    ///     far the simulation advances - follows from that one return value.
+    ///
+    ///     The factor is applied only where the player has control or a battle is running, and not
+    ///     while a movie plays, a menu is open, or the event is 0x163 or 0x3e. A cutscene fails the
+    ///     first of those by definition, which is why the shipped booster does nothing there.
+    ///
+    ///     Returns a long double in ST(0). A managed delegate cannot express that, so this module
+    ///     declares the return as a double: on x86 both come back in ST(0), and the 80-to-64-bit
+    ///     narrowing is far below the resolution of a frame delta.
+    /// </summary>
+    public const nint SpdCtrlScaleElapsedTime = 0x2F7430;
+
+    /// <summary>
+    ///     SpdCtrl_IsSpeedingUp(). Cdecl, no arguments, returns a bool. Read in exactly one place,
+    ///     and that place matters: it is the first thing the multi-pass gate FUN_0081fe40 tests,
+    ///     and a non-zero answer returns 1 from it before any of the per-scene checks run. So this
+    ///     is not a status flag, it is the veto lift - without it the gate refuses the extra
+    ///     simulation passes that a scaled delta asks for.
+    /// </summary>
+    public const nint SpdCtrlIsSpeedingUp = 0x2F7420;
+
+    /// <summary>
+    ///     Sg_SetMuteSound(int). Cdecl. The shipped booster calls this with 1 when it engages and 0
+    ///     when it stops, which is how the game answers the problem that voice and video do not
+    ///     scale with the simulation. A fast forward that reaches states the booster does not has
+    ///     to do the same for itself.
+    /// </summary>
+    public const nint SgSetMuteSound = 0x421D80;
+
+    /// <summary>
+    ///     inputIsPressButton(mask). Cdecl, returns non-zero while any bit of the mask is held.
+    ///     Reads the engine's current button word, so it is already past key assignment and pad
+    ///     abstraction. The shipped booster polls it with 0x10000.
+    /// </summary>
+    public const nint InputIsPressButton = 0x230EA0;
 }
