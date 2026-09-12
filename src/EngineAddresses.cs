@@ -15,26 +15,13 @@ public static class EngineAddresses
     /// <summary>AtelGetEventName(event_id). Cdecl, returns a pointer to the event's name.</summary>
     public const nint AtelGetEventName = 0x4796E0;
 
-    /// <summary>NeedShowJapanLogo. Cdecl, returns non-zero while the Japan logo gate is open.</summary>
-    public const nint NeedShowJapanLogo = 0x387450;
-
     /// <summary>
-    ///     The FMV manager's skip poll. Thiscall. It watches Triangle to arm a skip and Cross to
-    ///     commit it; hooking it lets the boot videos be skipped without input.
+    ///     Reads the opening-screen flag. Cdecl, no arguments, returns a byte. graphicInitScene
+    ///     runs its Flash render loop for as long as this stays non-zero, so answering zero ends
+    ///     the loop before its first pass. The flag is set only by the routine that loads
+    ///     OpeningScreen.swf and read only here.
     /// </summary>
-    public const nint FmvSkipPoll = 0x2D9590;
-
-    /// <summary>int. Non-zero while a movie is playing.</summary>
-    public const nint GMoviePlay = 0xD2A008;
-
-    /// <summary>byte. The engine's own movie-skip flag.</summary>
-    public const nint GMovieSkipFlag = 0x8DED21;
-
-    /// <summary>byte. Non-zero once the menu is up, which is the end of the boot sequence.</summary>
-    public const nint MenuState = 0xF407E4;
-
-    /// <summary>int. Id of the event currently running.</summary>
-    public const nint EventId = 0xEFBBF8;
+    public const nint OpeningScreenActive = 0x260580;
 
     // --- Focus handling ---
 
