@@ -1,0 +1,6 @@
+{
+  "name": "Controller Reset",
+  "desc": "Hold L1 and R1, then press Start/Options to request game over using native controller input.",
+  "fhqol.reset.enabled.name": "Enable Controller Reset",
+  "fhqol.reset.enabled.desc": "Uses the game's controller state. Unsaved progress is lost; this requests game over rather than loading a save or jumping directly to the title."
+}

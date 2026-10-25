@@ -92,19 +92,25 @@ public unsafe sealed class FastForwardModule : FhModule
 
     public FastForwardModule()
     {
-        settings = new FhSettingsCategory("fhqol.ff", [_enabled, _factor, _button, _mute, _survey]);
+        _ = new Settings(this);
     }
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
+        if (!NativeBuild.TryValidate(out string nativeError))
+        {
+            _logger.Error(nativeError);
+            return false;
+        }
+
         if (!_enabled.get())
         {
             _logger.Info("[QoL] Fast forward disabled by config.");
             return true;
         }
 
-        bool ok = new FhMethodHandle<d_spd_ctrl_scale_elapsed_time>(new FhMethodLocation(EngineAddresses.SpdCtrlScaleElapsedTime, 0)).hook(this, h_scale_elapsed_time)
-               && new FhMethodHandle<d_spd_ctrl_is_speeding_up>(new FhMethodLocation(EngineAddresses.SpdCtrlIsSpeedingUp, 0)).hook(this, h_is_speeding_up);
+        bool ok = new FhCallHandle<d_spd_ctrl_scale_elapsed_time>(new FhCallLocation(EngineAddresses.SpdCtrlScaleElapsedTime, 0)).hook(this, h_scale_elapsed_time)
+               && new FhCallHandle<d_spd_ctrl_is_speeding_up>(new FhCallLocation(EngineAddresses.SpdCtrlIsSpeedingUp, 0)).hook(this, h_is_speeding_up);
 
         _logger.Info(ok
             ? $"[QoL] Fast forward armed: hold button mask 0x{_button.get():X} for {_factor.get():F1}x."
@@ -120,7 +126,7 @@ public unsafe sealed class FastForwardModule : FhModule
     /// </summary>
     private double h_scale_elapsed_time(float elapsed)
     {
-        var orig = new FhMethodHandle<d_spd_ctrl_scale_elapsed_time>(new FhMethodLocation(EngineAddresses.SpdCtrlScaleElapsedTime, 0))
+        var orig = new FhCallHandle<d_spd_ctrl_scale_elapsed_time>(new FhCallLocation(EngineAddresses.SpdCtrlScaleElapsedTime, 0))
             .chain_from(h_scale_elapsed_time).fnptr;
 
         double engine = orig is null ? elapsed : orig(elapsed);
@@ -161,7 +167,7 @@ public unsafe sealed class FastForwardModule : FhModule
     /// </summary>
     private byte h_is_speeding_up()
     {
-        var orig = new FhMethodHandle<d_spd_ctrl_is_speeding_up>(new FhMethodLocation(EngineAddresses.SpdCtrlIsSpeedingUp, 0))
+        var orig = new FhCallHandle<d_spd_ctrl_is_speeding_up>(new FhCallLocation(EngineAddresses.SpdCtrlIsSpeedingUp, 0))
             .chain_from(h_is_speeding_up).fnptr;
 
         byte engine = orig is null ? (byte)0 : orig();
@@ -176,7 +182,7 @@ public unsafe sealed class FastForwardModule : FhModule
 
         // The hold query, not the press one: isPressButton answers for the single scan in which
         // the button goes down, which made the speed-up last one tick.
-        var poll = new FhMethodHandle<d_input_is_hold_button>(new FhMethodLocation(EngineAddresses.InputIsHoldButton, 0)).fnptr;
+        var poll = new FhCallHandle<d_input_is_hold_button>(new FhCallLocation(EngineAddresses.InputIsHoldButton, 0)).fnptr;
         return poll is not null && poll(mask) != 0;
     }
 
@@ -190,7 +196,7 @@ public unsafe sealed class FastForwardModule : FhModule
         if (!_mute.get()) want = false;
         if (want == _muted) return;
 
-        var mute = new FhMethodHandle<d_sg_set_mute_sound>(new FhMethodLocation(EngineAddresses.SgSetMuteSound, 0)).fnptr;
+        var mute = new FhCallHandle<d_sg_set_mute_sound>(new FhCallLocation(EngineAddresses.SgSetMuteSound, 0)).fnptr;
         if (mute is null) return;
 
         mute(want ? 1 : 0);
@@ -210,7 +216,7 @@ public unsafe sealed class FastForwardModule : FhModule
     {
         if (!_survey.get()) return;
 
-        var poll = new FhMethodHandle<d_input_is_press_button>(new FhMethodLocation(EngineAddresses.InputIsPressButton, 0)).fnptr;
+        var poll = new FhCallHandle<d_input_is_press_button>(new FhCallLocation(EngineAddresses.InputIsPressButton, 0)).fnptr;
         if (poll is null) return;
 
         int word = 0;
@@ -223,4 +229,10 @@ public unsafe sealed class FastForwardModule : FhModule
         if (word != 0) _logger.Info($"[QoL] Buttons held: 0x{word:X}.");
     }
 
+
+    private sealed class Settings(FastForwardModule module) : FhSettingProvider<FastForwardModule>
+    {
+        protected override IEnumerable<FhSetting> get()
+            => [module._enabled, module._factor, module._button, module._mute, module._survey];
+    }
 }

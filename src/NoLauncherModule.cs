@@ -22,12 +22,18 @@ public unsafe sealed class NoLauncherModule : FhModule
 
     public NoLauncherModule()
     {
-        settings = new FhSettingsCategory("fhqol.launcher", [_enabled]);
+        _ = new Settings(this);
     }
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
-        if (!new FhMethodHandle<d_shell_execute_w>(new FhMethodLocation("shell32.dll", "ShellExecuteW")).hook(this, h_shell_execute_w))
+        if (!NativeBuild.TryValidate(out string nativeError))
+        {
+            _logger.Error(nativeError);
+            return false;
+        }
+
+        if (!new FhCallHandle<d_shell_execute_w>(new FhCallLocation("shell32.dll", "ShellExecuteW")).hook(this, h_shell_execute_w))
         {
             _logger.Error("[QoL] Could not hook ShellExecuteW; the launcher will reopen on close.");
             return false;
@@ -50,7 +56,13 @@ public unsafe sealed class NoLauncherModule : FhModule
             return 33;
         }
 
-        return new FhMethodHandle<d_shell_execute_w>(new FhMethodLocation("shell32.dll", "ShellExecuteW"))
+        return new FhCallHandle<d_shell_execute_w>(new FhCallLocation("shell32.dll", "ShellExecuteW"))
             .chain_from(h_shell_execute_w).fnptr!(hwnd, operation, file, parameters, directory, show_cmd);
+    }
+
+    private sealed class Settings(NoLauncherModule module) : FhSettingProvider<NoLauncherModule>
+    {
+        protected override IEnumerable<FhSetting> get()
+            => [module._enabled];
     }
 }

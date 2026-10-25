@@ -36,7 +36,7 @@ namespace Fahrenheit.Mods.Qol;
 ///     </para>
 /// </summary>
 [FhLoad(FhGameId.FFX)]
-public unsafe sealed class FocusInputModule : FhModule
+public unsafe sealed partial class FocusInputModule : FhModule
 {
     private readonly FhSettingToggle _neutralize = new("fhqol.focus.neutralize", true);
     private readonly FhSettingToggle _survey     = new("fhqol.focus.survey",     false);
@@ -74,19 +74,25 @@ public unsafe sealed class FocusInputModule : FhModule
 
     public FocusInputModule()
     {
-        settings = new FhSettingsCategory("fhqol.focus", [_neutralize, _survey]);
+        _ = new Settings(this);
     }
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
-        if (!new FhMethodHandle<d_tk_scan_controler>(new FhMethodLocation(EngineAddresses.TkScanControler, 0)).hook(this, h_tk_scan_controler))
+        if (!NativeBuild.TryValidate(out string nativeError))
+        {
+            _logger.Error(nativeError);
+            return false;
+        }
+
+        if (!new FhCallHandle<d_tk_scan_controler>(new FhCallLocation(EngineAddresses.TkScanControler, 0)).hook(this, h_tk_scan_controler))
         {
             _logger.Error("[QoL] Could not hook TkScanControler; the focus-loss drift stays.");
             return false;
         }
 
         _logger.Info("[QoL] Focus neutralisation hooked on TkScanControler.");
-        return true;
+        return init_native_pad_focus();
     }
 
     private void h_tk_scan_controler()
@@ -122,7 +128,7 @@ public unsafe sealed class FocusInputModule : FhModule
                 : "[QoL] Focus lost; holding the pad neutral.");
         }
 
-        new FhMethodHandle<d_tk_scan_controler>(new FhMethodLocation(EngineAddresses.TkScanControler, 0))
+        new FhCallHandle<d_tk_scan_controler>(new FhCallLocation(EngineAddresses.TkScanControler, 0))
             .chain_from(h_tk_scan_controler).fnptr!();
     }
 
@@ -171,4 +177,10 @@ public unsafe sealed class FocusInputModule : FhModule
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);
+
+    private sealed class Settings(FocusInputModule module) : FhSettingProvider<FocusInputModule>
+    {
+        protected override IEnumerable<FhSetting> get()
+            => [module._neutralize, module._survey];
+    }
 }

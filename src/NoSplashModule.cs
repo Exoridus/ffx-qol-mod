@@ -36,11 +36,17 @@ public unsafe sealed class NoSplashModule : FhModule
 
     public NoSplashModule()
     {
-        settings = new FhSettingsCategory("fhqol.splash", [_enabled, _no_attract]);
+        _ = new Settings(this);
     }
 
     public override bool init(FhModContext mod_context, FileStream global_state_file)
     {
+        if (!NativeBuild.TryValidate(out string nativeError))
+        {
+            _logger.Error(nativeError);
+            return false;
+        }
+
         // Read once at init: the hooks are installed or they are not, and toggling the setting
         // mid-run cannot un-skip a boot sequence that has already happened.
         if (!_enabled.get())
@@ -49,9 +55,9 @@ public unsafe sealed class NoSplashModule : FhModule
             return true;
         }
 
-        bool ok = new FhMethodHandle<d_atel_event_setup>(new FhMethodLocation(EngineAddresses.AtelEventSetUp, 0)).hook(this, h_atel_event_setup)
-               && new FhMethodHandle<d_opening_screen_active>(new FhMethodLocation(EngineAddresses.OpeningScreenActive, 0)).hook(this, h_opening_screen_active)
-               && new FhMethodHandle<d_atel_pressed_buttons>(new FhMethodLocation(EngineAddresses.AtelPressedButtons, 0)).hook(this, h_atel_pressed_buttons);
+        bool ok = new FhCallHandle<d_atel_event_setup>(new FhCallLocation(EngineAddresses.AtelEventSetUp, 0)).hook(this, h_atel_event_setup)
+               && new FhCallHandle<d_opening_screen_active>(new FhCallLocation(EngineAddresses.OpeningScreenActive, 0)).hook(this, h_opening_screen_active)
+               && new FhCallHandle<d_atel_pressed_buttons>(new FhCallLocation(EngineAddresses.AtelPressedButtons, 0)).hook(this, h_atel_pressed_buttons);
 
         _logger.Info(ok ? "[QoL] Splash skip armed." : "[QoL] Splash skip could not install all of its hooks.");
         return ok;
@@ -73,7 +79,7 @@ public unsafe sealed class NoSplashModule : FhModule
 
         _current_event = target;
 
-        new FhMethodHandle<d_atel_event_setup>(new FhMethodLocation(EngineAddresses.AtelEventSetUp, 0))
+        new FhCallHandle<d_atel_event_setup>(new FhCallLocation(EngineAddresses.AtelEventSetUp, 0))
             .chain_from(h_atel_event_setup).fnptr!(target);
     }
 
@@ -102,7 +108,7 @@ public unsafe sealed class NoSplashModule : FhModule
     /// </summary>
     private ushort h_atel_pressed_buttons()
     {
-        ushort actual = new FhMethodHandle<d_atel_pressed_buttons>(new FhMethodLocation(EngineAddresses.AtelPressedButtons, 0))
+        ushort actual = new FhCallHandle<d_atel_pressed_buttons>(new FhCallLocation(EngineAddresses.AtelPressedButtons, 0))
             .chain_from(h_atel_pressed_buttons).fnptr!();
 
         if (actual != 0 || !_no_attract.get() || _current_event != TitleRoomId) return actual;
@@ -128,12 +134,18 @@ public unsafe sealed class NoSplashModule : FhModule
     {
         try
         {
-            char* p = new FhMethodHandle<d_atel_get_event_name>(new FhMethodLocation(EngineAddresses.AtelGetEventName, 0)).fnptr!(event_id);
+            char* p = new FhCallHandle<d_atel_get_event_name>(new FhCallLocation(EngineAddresses.AtelGetEventName, 0)).fnptr!(event_id);
             return p == null ? string.Empty : Marshal.PtrToStringAnsi((nint)p) ?? string.Empty;
         }
         catch
         {
             return string.Empty;
         }
+    }
+
+    private sealed class Settings(NoSplashModule module) : FhSettingProvider<NoSplashModule>
+    {
+        protected override IEnumerable<FhSetting> get()
+            => [module._enabled, module._no_attract];
     }
 }

@@ -1,82 +1,74 @@
+<div align="center">
+
 # FFX Quality of Life
 
-[![CI](https://github.com/Exoridus/ffx-qol-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/Exoridus/ffx-qol-mod/actions/workflows/ci.yml)
+### Small conveniences. Independent controls.
 
-Three independently switchable conveniences for Final Fantasy X HD Remaster, loaded by Fahrenheit.
+[![Latest](https://img.shields.io/github/v/release/Exoridus/ffx-qol-mod?include_prereleases&style=for-the-badge&logo=github&label=Latest)](https://github.com/Exoridus/ffx-qol-mod/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/Exoridus/ffx-qol-mod/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=fff&label=CI)](https://github.com/Exoridus/ffx-qol-mod/actions/workflows/ci.yml)
 
-## Status
+A [Fahrenheit](https://github.com/fahrenheit-crew/fahrenheit) mod for the Windows Steam version of Final Fantasy X HD Remaster.
 
-**Work in progress / experimental preview.** A successful build verifies compilation and packaging, not complete in-game compatibility. Final Fantasy X only; Final Fantasy X-2 is unsupported. Keep a backup of your saves and report the game build, scene and enabled settings when filing an issue.
+**[Downloads](https://github.com/Exoridus/ffx-qol-mod/releases)** · **[Install](#installation)** · **[Settings](#settings)** · **[Report a bug](https://github.com/Exoridus/ffx-qol-mod/issues)**
 
-## Features
+</div>
 
-- **NoSplash:** skips the startup splash sequence and boot videos.
-- **NoLauncher:** prevents the launcher from reopening when the game closes.
-- **FocusInput:** neutralizes controller input while the game window is unfocused.
+> [!IMPORTANT]
+> Experimental. Built with the official Fahrenheit alpha12 SDK and tested on Steam build **25501027**.
+> FFX-2 is not supported.
 
-Settings and diagnostic pad logging are available in Fahrenheit's settings panel. English and German labels are included.
+## What it does
 
-## Requirements
+Each feature has its own category in the F7 menu and can be turned off on its own.
 
-- Windows and a legitimate installation of Final Fantasy X HD Remaster.
-- [Fahrenheit](https://github.com/fahrenheit-crew/fahrenheit), compatible with the revision pinned in `fahrenheit.release.ref`.
-- The mod is a Windows x86 managed plugin, not a standalone executable. Fahrenheit provides its runtime and loader dependencies.
+| Feature | Behavior |
+| --- | --- |
+| NoSplash | Skips the startup splash screens and boot videos. |
+| NoLauncher | Stops the launcher from reopening when the game closes. |
+| FocusInput | Ignores controller input while the game window is unfocused, including the HD/ESC menu and the false "up" a failed DirectInput read produces after Alt-Tab. |
+| FastForward | Hold a button (default R2) to speed up the game; speed and muting are configurable. |
+| NativeReset | Hold L1 + R1 and press Start/Options to request a game over. |
+| Farplane | Restores the Farplane background movie and its pyreflies and fixes the movie teardown, based on Farplane Fix 1.2 by Fuxake. |
 
 ## Installation
 
-Every release carries two archives. `fahrenheit-full-<version>.zip` is the ready-to-play package: the Fahrenheit host built from the pinned revision, the mod, a `loadorder` naming it, and the launcher scripts. `fhqol-mod-<version>.zip` is the mod alone, for an existing Fahrenheit installation.
+Requires Fahrenheit with its prerequisites: **.NET Runtime 10** and the **Visual C++ Redistributable**,
+both in the **x86** version (see the [Fahrenheit installation guide](https://github.com/fahrenheit-crew/fahrenheit/wiki/Installation-guide)).
 
-Full package:
+| Download | Extract to | Use |
+| --- | --- | --- |
+| `fhqol-mod-<tag>.zip` | `GAME_DIR/fahrenheit/mods/` | Add to an existing Fahrenheit installation. Add `fhqol` to `fahrenheit/mods/loadorder`. |
+| `fhqol-full-<tag>.zip` | `GAME_DIR/`, next to `FFX.exe` | Mod plus matching Fahrenheit. Start with `start-ffx-with-mods.cmd`. |
 
-1. Download the ZIP and its SHA-256 checksum from [Releases](https://github.com/Exoridus/ffx-qol-mod/releases).
-2. Extract it into the game directory, next to `FFX.exe`. The resulting paths must be `fahrenheit/bin/fhstage0.exe` and `fahrenheit/mods/fhqol/fhqol.dll`.
-3. Start the game through `start-ffx-with-mods.cmd`, which checks for the Microsoft .NET Runtime 10 (x86) and offers to install it. The bundled `README.txt` has the details.
+Keep the `fhqol/` folder complete. To update, replace the folder; to uninstall, delete it and its
+loadorder entry. Each download has a `.sha256` file to compare with `Get-FileHash`.
 
-Mod only:
+## Settings
 
-1. Install Fahrenheit following its upstream instructions.
-2. Extract the mod ZIP into the game's `fahrenheit/` directory. The resulting path must be `fahrenheit/mods/fhqol/fhqol.dll`.
-3. Add `fhqol` on its own line to `fahrenheit/mods/loadorder`.
-4. Launch the game and adjust the mod's settings in Fahrenheit.
+Open Fahrenheit's settings with **F7**. English and German labels are included.
 
-To uninstall, close the game, remove that loadorder entry and remove `fahrenheit/mods/fhqol/`, or remove the whole `fahrenheit/` directory for the full package. Do not overwrite the game's executable or data archives.
+## Known limitations
 
-Verify the ZIP with `Get-FileHash <downloaded.zip> -Algorithm SHA256` and compare the value with the `.sha256` file.
+- FastForward cannot speed up the three syncdata-paced scenes at Seymour, Home and Yunalesca.
+- Farplane: long-duration looping, reset and the second teardown path are untested.
 
 ## Build from source
 
-Requires Git, PowerShell 7 and the .NET 10 SDK selected by `global.json`.
+Requires Git and the .NET 10 SDK pinned in [global.json](global.json).
 
 ```powershell
-git clone https://github.com/Exoridus/ffx-qol-mod.git
-cd ffx-qol-mod
-pwsh tools/bootstrap.ps1
-pwsh build.ps1 -Configuration Release -OutDir .release/stage
+.\build.cmd mod-build  --sdk local --configuration Debug
+.\build.cmd mod-verify --sdk local --configuration Release
+.\build.cmd mod-pack   --sdk local --configuration Release --tag v0.0.0-dev --out-dir .release
 ```
 
-Bootstrap checks out the pinned public Fahrenheit source. No game installation or private sibling repository is required to compile. `-Deploy` is an optional local convenience with a machine-specific destination in `build.ps1`; use staged output for other installations.
-
-The full package additionally needs the Fahrenheit host, whose native loaders require Visual Studio (or Build Tools) with the C++ workload and an integrated vcpkg:
-
-```powershell
-pwsh tools/build-fahrenheit.ps1 -Configuration Release
-pwsh .github/scripts/New-ReleasePackage.ps1 -Tag v<VERSION> -StageDir .release/stage -OutDir .release -FahrenheitDeployDir .workspace/fahrenheit/artifacts/deploy/rel
-```
-
-## Releases and CI
-
-CI builds on Windows, builds the Fahrenheit host from the pinned revision, and exercises the same package and release-note scripts used by releases. The mod ZIP contains only `mods/fhqol/`: the mod DLL, manifest, dependency metadata and localization files. The full ZIP adds Fahrenheit's `bin/` as built from `fahrenheit.release.ref`, a `loadorder`, and the launcher scripts from `packaging/`. Game assets are never bundled.
-
-Maintainers set the manifest version, merge to `main`, then dispatch:
-
-```powershell
-gh workflow run release.yml -R Exoridus/ffx-qol-mod -f version=v<VERSION> -f dry_run=true
-```
-
-Omit `dry_run` to publish an experimental prerelease with a ZIP and SHA-256 file. The version must match the manifest; the workflow creates its tag only after building and packaging succeed.
+Add `--full true` to `mod-pack` for the full package (needs the Visual Studio C++ build tools).
+Pushing a `vX.Y.Z` tag that matches the project version on `main` builds with the official SDK and
+publishes the release; a normal push never creates one.
 
 ## Related projects
 
-- [Fahrenheit Parry Mod](https://github.com/Exoridus/fahrenheit-parry-mod)
-- [FFX Quality of Life](https://github.com/Exoridus/ffx-qol-mod)
-- [FFX FPS Unlock](https://github.com/Exoridus/ffx-fpsunlock-mod)
+[Fahrenheit](https://github.com/fahrenheit-crew/fahrenheit) · [FFX Parry](https://github.com/Exoridus/ffx-parry-mod) · [FFX VRR](https://github.com/Exoridus/ffx-vrr-mod)
+
+Final Fantasy X belongs to Square Enix. This is an independent community project. No game files or
+replacement movies are distributed.

@@ -7,13 +7,16 @@ namespace Fahrenheit.Mods.Qol;
 /// </summary>
 public static class EngineAddresses
 {
+    public const nint BattleEndType = 0xD2C9F1;
+    public const nint BattleState = 0xD2A8E0;
+
     // --- Startup skip ---
 
     /// <summary>AtelEventSetUp(event_id). Cdecl. Entry point for switching to an event.</summary>
-    public const nint AtelEventSetUp = 0x472E90;
+    public const nint AtelEventSetUp = 0x472EF0;
 
     /// <summary>AtelGetEventName(event_id). Cdecl, returns a pointer to the event's name.</summary>
-    public const nint AtelGetEventName = 0x4796E0;
+    public const nint AtelGetEventName = 0x479760;
 
     /// <summary>
     ///     Reads the opening-screen flag. Cdecl, no arguments, returns a byte. graphicInitScene
@@ -21,7 +24,7 @@ public static class EngineAddresses
     ///     the loop before its first pass. The flag is set only by the routine that loads
     ///     OpeningScreen.swf and read only here.
     /// </summary>
-    public const nint OpeningScreenActive = 0x260580;
+    public const nint OpeningScreenActive = 0x260400;
 
     /// <summary>
     ///     The ATEL script getter behind the Common namespace's pressed-buttons query, function id
@@ -29,7 +32,7 @@ public static class EngineAddresses
     ///     current button word and translates it through the key-assignment table, with no side
     ///     effect of its own.
     /// </summary>
-    public const nint AtelPressedButtons = 0x45D350;
+    public const nint AtelPressedButtons = 0x45D4E0;
 
     // --- Focus handling ---
 
@@ -37,7 +40,13 @@ public static class EngineAddresses
     ///     TkScanControler. Cdecl, no arguments. The main loop calls it once per frame; it pushes
     ///     one sample per port into a four-slot input history ring through FUN_00889700.
     /// </summary>
-    public const nint TkScanControler = 0x489350;
+    public const nint TkScanControler = 0x4893E0;
+
+    /// <summary>Phyre DirectInput pad poll. Thiscall, no stack arguments.</summary>
+    public const nint DirectInputPadPoll = 0x22D9D0;
+
+    /// <summary>Publishes physical device values to bound input actions. Thiscall, no stack arguments.</summary>
+    public const nint InputDevicePublish = 0x22D550;
 
     /// <summary>
     ///     First pad record. FUN_00888e30 is address arithmetic on a static array,
@@ -45,7 +54,7 @@ public static class EngineAddresses
     ///     Analog axes are bytes at +0x84 and +0x90 with 0x80 as the rest position; the button
     ///     words FUN_00889700 copies into the ring slot are at +0x98 and +0x9a.
     /// </summary>
-    public const nint PadRecordBase = 0xF30248;
+    public const nint PadRecordBase = 0xF30288;
 
     public const int PadRecordStride = 0x100;
 
@@ -69,7 +78,7 @@ public static class EngineAddresses
     ///     declares the return as a double: on x86 both come back in ST(0), and the 80-to-64-bit
     ///     narrowing is far below the resolution of a frame delta.
     /// </summary>
-    public const nint SpdCtrlScaleElapsedTime = 0x2F7430;
+    public const nint SpdCtrlScaleElapsedTime = 0x2F7340;
 
     /// <summary>
     ///     SpdCtrl_IsSpeedingUp(). Cdecl, no arguments, returns a bool. Read in exactly one place,
@@ -78,7 +87,7 @@ public static class EngineAddresses
     ///     is not a status flag, it is the veto lift - without it the gate refuses the extra
     ///     simulation passes that a scaled delta asks for.
     /// </summary>
-    public const nint SpdCtrlIsSpeedingUp = 0x2F7420;
+    public const nint SpdCtrlIsSpeedingUp = 0x2F7330;
 
     /// <summary>
     ///     Sg_SetMuteSound(int). Cdecl. The shipped booster calls this with 1 when it engages and 0
@@ -86,7 +95,7 @@ public static class EngineAddresses
     ///     scale with the simulation. A fast forward that reaches states the booster does not has
     ///     to do the same for itself.
     /// </summary>
-    public const nint SgSetMuteSound = 0x421D80;
+    public const nint SgSetMuteSound = 0x421C60;
 
     /// <summary>
     ///     inputIsPressButton(mask). Cdecl, returns non-zero on the one scan in which a bit of the
@@ -94,12 +103,12 @@ public static class EngineAddresses
     ///     word set. Reads the engine's button words, so it is already past key assignment and pad
     ///     abstraction. The shipped booster polls it with 0x10000.
     /// </summary>
-    public const nint InputIsPressButton = 0x230EA0;
+    public const nint InputIsPressButton = 0x230CF0;
 
     /// <summary>
     ///     inputIsHoldButton(mask). Cdecl, returns non-zero while any bit of the mask is down:
     ///     InputManager::isHoldButton is the current word and the mask, nothing else. This is the
     ///     one to poll for a hold; the press variant above answers for a single scan.
     /// </summary>
-    public const nint InputIsHoldButton = 0x230E80;
+    public const nint InputIsHoldButton = 0x230CD0;
 }

@@ -1,0 +1,6 @@
+{
+  "name": "Controller-Reset",
+  "desc": "L1 und R1 halten, dann Start/Options drücken, um über die native Controllereingabe Game Over auszulösen.",
+  "fhqol.reset.enabled.name": "Controller-Reset aktivieren",
+  "fhqol.reset.enabled.desc": "Verwendet den Controllerzustand des Spiels. Ungespeicherter Fortschritt geht verloren; der Reset löst Game Over aus und lädt weder einen Spielstand noch springt er direkt zum Titel."
+}
