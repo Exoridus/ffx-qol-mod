@@ -92,25 +92,16 @@ public unsafe sealed partial class FocusInputModule : FhModule
         }
 
         _logger.Info("[QoL] Focus neutralisation hooked on TkScanControler.");
-        return init_native_pad_focus();
+        bool ready = init_native_pad_focus();
+        lock (_focusPolicyGate) _vrrPolicyReady = ready;
+        return ready;
     }
 
     private void h_tk_scan_controler()
     {
         _scans++;
 
-        bool focused = WindowOwnsInput();
-
-        if (!focused) _refocus_grace = RefocusGraceScans;
-        else if (_refocus_grace > 0) _refocus_grace--;
-
-        if ((!focused || _refocus_grace > 0) && _neutralize.get())
-        {
-            for (var port = 0; port < EngineAddresses.PadRecordCount; port++)
-                NeutralizePad(PadRecord(port));
-
-            _neutralized++;
-        }
+        bool neutralize = begin_focus_scan(out bool focused, out long generation);
 
         if (_survey.get() && focused && _samples_logged < 8)
         {
@@ -128,8 +119,17 @@ public unsafe sealed partial class FocusInputModule : FhModule
                 : "[QoL] Focus lost; holding the pad neutral.");
         }
 
-        new FhCallHandle<d_tk_scan_controler>(new FhCallLocation(EngineAddresses.TkScanControler, 0))
+        invoke_vrr_input_publication(generation, neutralize);
+    }
+
+    private void forward_tk_scan_controler()
+        => new FhCallHandle<d_tk_scan_controler>(new FhCallLocation(EngineAddresses.TkScanControler, 0))
             .chain_from(h_tk_scan_controler).fnptr!();
+
+    private static void write_neutral_pad_records()
+    {
+        for (var port = 0; port < EngineAddresses.PadRecordCount; port++)
+            NeutralizePad(PadRecord(port));
     }
 
     /// <summary>
