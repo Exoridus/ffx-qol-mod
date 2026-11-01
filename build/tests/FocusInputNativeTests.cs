@@ -4,6 +4,82 @@ using Xunit;
 public sealed class FocusInputNativeTests
 {
     [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    public unsafe void XInputOnlyPreviouslyConnectedFailureInvalidatesRelease(bool before, bool after, bool canRelease)
+    {
+        var module = Blocked(0);
+        byte* device = stackalloc byte[0x3a8];
+        new Span<byte>(device, 0x3a8).Clear();
+        device[0x69] = before ? (byte)1 : (byte)0;
+        NativeDeviceFixture.NativePoll = ptr => *((byte*)ptr + 0x69) = after ? (byte)1 : (byte)0;
+        module.XInputPoll((nint)device);
+        module.Poll(0, 0);
+        Assert.Equal(canRelease, module.TryGetVrrInputPolicy(1, out _, out _));
+    }
+
+    [Fact]
+    public unsafe void XInputFailureCannotBeClearedByOtherDeviceOrThrowingRecovery()
+    {
+        var module = Blocked(0);
+        byte* devices = stackalloc byte[2 * 0x3a8];
+        new Span<byte>(devices, 2 * 0x3a8).Clear();
+        devices[0x69] = 1;
+        NativeDeviceFixture.NativePoll = ptr => *((byte*)ptr + 0x69) = 0;
+        module.XInputPoll((nint)devices);
+        NativeDeviceFixture.NativePoll = ptr => *((byte*)ptr + 0x69) = 1;
+        module.XInputPoll((nint)(devices + 0x3a8));
+        module.Poll(0, 0);
+        Assert.False(module.TryGetVrrInputPolicy(1, out _, out _));
+        var error = new InvalidOperationException("native");
+        NativeDeviceFixture.NativePoll = ptr => { *((byte*)ptr + 0x69) = 1; throw error; };
+        Assert.Same(error, Assert.Throws<InvalidOperationException>(() => module.XInputPoll((nint)devices)));
+        module.Poll(0, 0);
+        Assert.False(module.TryGetVrrInputPolicy(1, out _, out _));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public unsafe void XInputDisconnectZeroDoesNotRearmHeldButtonAndReconnectStillNeedsRelease(bool enabled)
+    {
+        var module = Blocked(0);
+        module.Enabled = enabled;
+        byte* device = stackalloc byte[0x3a8];
+        new Span<byte>(device, 0x3a8).Clear();
+        device[0x69] = 1;
+        int calls = 0;
+        nint expectedDevice = (nint)device;
+        NativeDeviceFixture.NativePoll = ptr =>
+        {
+            Assert.Equal(expectedDevice, ptr);
+            calls++;
+            *((byte*)ptr + 0x69) = 0;
+            module.Buttons[0] = 0;
+        };
+        module.XInputPoll(expectedDevice);
+        NativeRefreshFixture.Native = (_, _, _) => { };
+        module.Refresh(0, 0, 0);
+        Assert.Equal(1, calls);
+        Assert.False(module.TryGetVrrInputPolicy(1, out _, out _));
+
+        NativeDeviceFixture.NativePoll = ptr => { *((byte*)ptr + 0x69) = 1; module.Buttons[0] = 0x800; };
+        module.XInputPoll(expectedDevice);
+        module.Refresh(0, 0, 0);
+        module.Publish();
+        Assert.Equal(0u, module.Buttons[0]);
+        NativeDeviceFixture.NativePoll = ptr => { *((byte*)ptr + 0x69) = 1; module.Buttons[0] = 0; };
+        module.XInputPoll(expectedDevice);
+        module.Refresh(0, 0, 0);
+        Assert.True(module.TryGetVrrInputPolicy(1, out _, out _));
+        module.Poll(0, 0x800);
+        module.Publish();
+        Assert.Equal(0x800u, module.Buttons[0]);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public unsafe void UnrelatedDeviceSuccessCannotClearFailedDeviceButMatchingRecoveryAllowsRelease(bool enabled)

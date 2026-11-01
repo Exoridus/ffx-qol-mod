@@ -55,8 +55,9 @@ Open Fahrenheit's settings with **F7**. English and German labels are included.
   pressing them again. Other buttons and analog movement remain available after the refocus grace.
   Disabling the setting stops new neutralization; buttons already quarantined still require release.
   VRR input replay temporarily yields to native publication while those buttons are rearming.
-  A failed DirectInput device must supply a matching successful read before its prior held buttons
-  can rearm; reconnect/disposal behavior still needs native validation. The focus-rearm repair is
+  A failed DirectInput device must supply a matching successful read, and a disconnected XInput
+  device must reconnect before its prior held buttons can rearm. Device disposal still needs native
+  validation. The focus-rearm repair is
   covered by source-linked tests and has not yet been tested in the game.
 
 ## Build from source

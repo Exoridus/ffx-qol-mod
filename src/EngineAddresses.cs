@@ -48,6 +48,9 @@ public static class EngineAddresses
     /// <summary>Phyre DirectInput pad poll. Thiscall, no stack arguments.</summary>
     public const nint DirectInputPadPoll = 0x22D9D0;
 
+    /// <summary>Phyre XInput pad poll. Thiscall; connection byte at device+0x69 guards synthetic zeroes.</summary>
+    public const nint XInputPadPoll = 0x22DBA0;
+
     /// <summary>Publishes physical device values to bound input actions. Thiscall, no stack arguments.</summary>
     public const nint InputDevicePublish = 0x22D550;
 

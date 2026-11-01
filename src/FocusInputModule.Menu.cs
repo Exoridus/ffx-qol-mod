@@ -10,17 +10,32 @@ public unsafe sealed partial class FocusInputModule
     private bool init_native_pad_focus()
     {
         ReadOnlySpan<byte> poll = [0x55, 0x8b, 0xec, 0x81, 0xec, 0x14, 0x01, 0x00];
+        ReadOnlySpan<byte> xinputPoll = [0x55, 0x8b, 0xec, 0x83, 0xec, 0x24];
         ReadOnlySpan<byte> publish = [0x56, 0x8b, 0x71, 0x0c, 0x57, 0x8d, 0x79, 0x0c];
         if (!new ReadOnlySpan<byte>(FhUtil.ptr_at<byte>(EngineAddresses.DirectInputPadPoll), poll.Length).SequenceEqual(poll)
+            || !new ReadOnlySpan<byte>(FhUtil.ptr_at<byte>(EngineAddresses.XInputPadPoll), xinputPoll.Length).SequenceEqual(xinputPoll)
             || !new ReadOnlySpan<byte>(FhUtil.ptr_at<byte>(EngineAddresses.InputDevicePublish), publish.Length).SequenceEqual(publish)
             || !new FhCallHandle<d_pad_device_update>(new FhCallLocation(EngineAddresses.DirectInputPadPoll, 0))
-                .hook(this, h_directinput_pad_poll))
+                .hook(this, h_directinput_pad_poll)
+            || !new FhCallHandle<d_pad_device_update>(new FhCallLocation(EngineAddresses.XInputPadPoll, 0))
+                .hook(this, h_xinput_pad_poll))
         {
             _logger.Error("[QoL] DirectInput focus repair refused: unexpected poll/publish code or unavailable hook.");
             return false;
         }
         _logger.Info("[QoL] DirectInput pad focus repair active: failed state reads cannot publish a phantom POV-up press.");
         return true;
+    }
+
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvThiscall)])]
+    private void h_xinput_pad_poll(nint device)
+    {
+        bool wasConnected = *(byte*)(device + 0x69) != 0;
+        new FhCallHandle<d_pad_device_update>(new FhCallLocation(EngineAddresses.XInputPadPoll, 0))
+            .chain_from(h_xinput_pad_poll).fnptr!(device);
+        bool connected = *(byte*)(device + 0x69) != 0;
+        // Never-connected placeholders cannot invalidate another device's release evidence.
+        if (wasConnected || connected) observe_focus_device_read(device, connected);
     }
 
     [UnmanagedCallConv(CallConvs = [typeof(CallConvThiscall)])]

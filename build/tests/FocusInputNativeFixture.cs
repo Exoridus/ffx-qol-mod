@@ -8,6 +8,7 @@ public unsafe sealed partial class FocusInputModule
     private readonly NativeLogger _logger = new();
     public void Refresh(int port, int pad, nint buffer) => h_refresh_pad_input(port, pad, buffer);
     public void DevicePoll(nint device) => h_directinput_pad_poll(device);
+    public void XInputPoll(nint device) => h_xinput_pad_poll(device);
     private sealed class NativeLogger { public void Error(string message) { } public void Info(string message) { } }
 }
 
@@ -20,7 +21,7 @@ internal sealed class FhCallHandle<T>(FhCallLocation location) where T : Delegat
         get
         {
             Delegate native = location.Address == EngineAddresses.RefreshPadInput ? NativeRefreshFixture.Native
-                : location.Address == EngineAddresses.DirectInputPadPoll ? NativeDeviceFixture.NativePoll
+                : location.Address == EngineAddresses.DirectInputPadPoll || location.Address == EngineAddresses.XInputPadPoll ? NativeDeviceFixture.NativePoll
                 : location.Address == EngineAddresses.InputDevicePublish ? NativeDeviceFixture.NativePublish
                 : throw new InvalidOperationException("Unexpected native target.");
             if (location.Offset != 0) throw new InvalidOperationException("Unexpected native offset.");
