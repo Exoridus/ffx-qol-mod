@@ -51,6 +51,12 @@ Open Fahrenheit's settings with **F7**. English and German labels are included.
 
 - FastForward cannot speed up the three syncdata-paced scenes at Seymour, Home and Yunalesca.
 - Farplane: long-duration looping, reset and the second teardown path are untested.
+- FocusInput: after returning to the window, release buttons held across the focus change before
+  pressing them again. Other buttons and analog movement remain available after the refocus grace.
+  VRR input replay temporarily yields to native publication while those buttons are rearming.
+  A failed DirectInput device must supply a matching successful read before its prior held buttons
+  can rearm; reconnect/disposal behavior still needs native validation. The focus-rearm repair is
+  covered by source-linked tests and has not yet been tested in the game.
 
 ## Build from source
 

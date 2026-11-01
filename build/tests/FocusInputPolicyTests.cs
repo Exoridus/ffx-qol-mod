@@ -29,9 +29,12 @@ public sealed class FocusInputPolicyTests
         Assert.True(neutralize);
         Assert.True(lost > first);
         module.Focused = true;
-        Assert.True(module.TryGetVrrInputPolicy(1, out long regained, out neutralize));
+        Assert.False(module.TryGetVrrInputPolicy(1, out long regained, out neutralize));
         Assert.False(neutralize);
         Assert.True(regained > lost);
+        module.Publish();
+        Assert.True(module.TryGetVrrInputPolicy(1, out _, out neutralize));
+        Assert.False(neutralize);
         module.Focused = false;
         Assert.True(module.Scan());
         Assert.Equal(3, module.Grace);

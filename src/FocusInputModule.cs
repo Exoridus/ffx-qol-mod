@@ -42,7 +42,7 @@ public unsafe sealed partial class FocusInputModule : FhModule
     private readonly FhSettingToggle _survey     = new("fhqol.focus.survey",     false);
 
     /// <summary>
-    ///     How many scans after focus returns still get a neutral pad written.
+    ///     Refocus counter, decremented before each focused publication.
     ///
     ///     <para>
     ///     Stopping on the first focused scan let exactly one bad sample through, and it read as a
@@ -54,11 +54,9 @@ public unsafe sealed partial class FocusInputModule : FhModule
     ///     </para>
     ///
     ///     <para>
-    ///     Three scans rather than one: the poll and the scan are not ordered against each other,
-    ///     and the ring's own snapshot ORs together every frame since the last sync, so a single
-    ///     frame of margin would leave the timing to chance. The cost is that a press within the
-    ///     first 100 ms of regaining focus is dropped, which is the same input a player is not
-    ///     making yet.
+    ///     The first two focused scans remain neutral; the third reaches zero. Buttons observed
+    ///     during neutralization or at that first admitted scan stay masked until a later focused
+    ///     native refresh observes release. Repeated publications cannot establish physical release.
     ///     </para>
     /// </summary>
     private const int RefocusGraceScans = 3;
@@ -85,6 +83,8 @@ public unsafe sealed partial class FocusInputModule : FhModule
             return false;
         }
 
+        if (!init_native_pad_focus() || !init_focus_button_rearming()) return false;
+
         if (!new FhCallHandle<d_tk_scan_controler>(new FhCallLocation(EngineAddresses.TkScanControler, 0)).hook(this, h_tk_scan_controler))
         {
             _logger.Error("[QoL] Could not hook TkScanControler; the focus-loss drift stays.");
@@ -92,9 +92,8 @@ public unsafe sealed partial class FocusInputModule : FhModule
         }
 
         _logger.Info("[QoL] Focus neutralisation hooked on TkScanControler.");
-        bool ready = init_native_pad_focus();
-        lock (_focusPolicyGate) _vrrPolicyReady = ready;
-        return ready;
+        lock (_focusPolicyGate) _vrrPolicyReady = true;
+        return true;
     }
 
     private void h_tk_scan_controler()
@@ -138,6 +137,10 @@ public unsafe sealed partial class FocusInputModule : FhModule
     /// </summary>
     private static byte* PadRecord(int port) =>
         FhUtil.ptr_at<byte>(EngineAddresses.PadRecordBase + port * EngineAddresses.PadRecordStride);
+
+    private static uint read_pad_buttons(int port) => *(uint*)(PadRecord(port) + 0x98);
+
+    private static void write_pad_buttons(int port, uint buttons) => *(uint*)(PadRecord(port) + 0x98) = buttons;
 
     /// <summary>
     ///     Exactly what FUN_00888f70 writes. Kept field for field rather than reduced to the two

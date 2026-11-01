@@ -16,8 +16,20 @@ public unsafe sealed partial class FocusInputModule
     public Action? Native;
     public int NativeCalls;
     public bool PadNeutral;
+    public readonly uint[] Buttons = new uint[2];
+    public void Poll(int port, uint buttons)
+    {
+        Buttons[port] = buttons;
+        observe_focus_buttons(port, buttons);
+    }
+    private uint read_pad_buttons(int port) => Buttons[port];
+    private void write_pad_buttons(int port, uint buttons) => Buttons[port] = buttons;
     private long _neutralized;
-    private void write_neutral_pad_records() => PadNeutral = true;
+    private void write_neutral_pad_records()
+    {
+        PadNeutral = true;
+        Array.Clear(Buttons);
+    }
     private void forward_tk_scan_controler() { NativeCalls++; Native?.Invoke(); }
     public void Publish()
     {

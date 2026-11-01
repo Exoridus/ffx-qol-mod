@@ -16,6 +16,8 @@
     <Compile Include="../../src/NativeBuild.cs" Link="NativeBuild.cs" />
     <Compile Include="../../src/EngineAddresses.cs" Link="EngineAddresses.cs" />
     <Compile Include="../../src/FocusInputModule.VrrPolicy.cs" Link="FocusInputModule.VrrPolicy.cs" />
+    <Compile Include="../../src/FocusInputModule.ButtonRearm.cs" Link="FocusInputModule.ButtonRearm.cs" />
+    <Compile Include="../../src/FocusInputModule.Menu.cs" Link="FocusInputModule.Menu.cs" />
     <Compile Include="../../src/ResetChord.cs" Link="ResetChord.cs" />
     <Compile Include="../../src/MenuInputState.cs" Link="MenuInputState.cs" />
     <Compile Include="../../src/FarplanePatchPlan.cs" Link="FarplanePatchPlan.cs" />

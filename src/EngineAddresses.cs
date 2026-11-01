@@ -42,6 +42,9 @@ public static class EngineAddresses
     /// </summary>
     public const nint TkScanControler = 0x4893E0;
 
+    /// <summary>Rebuilds one port's raw buttons and axes from native input state. Cdecl, (port, pad, buffer).</summary>
+    public const nint RefreshPadInput = 0x488F90;
+
     /// <summary>Phyre DirectInput pad poll. Thiscall, no stack arguments.</summary>
     public const nint DirectInputPadPoll = 0x22D9D0;
 

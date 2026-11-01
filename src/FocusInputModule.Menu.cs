@@ -28,12 +28,22 @@ public unsafe sealed partial class FocusInputModule
     {
         new FhCallHandle<d_pad_device_update>(new FhCallLocation(EngineAddresses.DirectInputPadPoll, 0))
             .chain_from(h_directinput_pad_poll).fnptr!(device);
-        if (!_neutralize.get() || *(byte*)(device + 0x3a4) == 0) return;
+        bool validateRelease = focus_button_observation_required();
+        bool repairUp = _neutralize.get() && *(byte*)(device + 0x3a4) != 0;
+        if (!validateRelease && !repairUp) return;
         nint input = *(nint*)(device + 0x14);
-        if (input == 0) return;
+        if (input == 0)
+        {
+            if (validateRelease) observe_focus_device_read(device, false);
+            return;
+        }
         byte* state = stackalloc byte[0x110];
         var getState = (delegate* unmanaged[Stdcall]<nint, uint, void*, int>)(*(nint**)input)[9];
         int result = getState(input, 0x110, state);
+        // Acquire can make this read succeed while the native publisher still contains synthetic zeroes.
+        observe_focus_device_read(device, result >= 0 && MenuInputState.MatchesPublishedState(
+            new ReadOnlySpan<byte>(state, 0x110), new ReadOnlySpan<byte>((void*)device, 0x3a8)));
+        if (!repairUp) return;
         uint pov = result < 0 ? uint.MaxValue : *(uint*)(state + 0x20);
         if (MenuInputState.ShouldDiscard(result))
             MenuInputState.NeutralizeDevice(new Span<byte>((void*)device, 0x3a8));
