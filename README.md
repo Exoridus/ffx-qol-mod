@@ -53,6 +53,7 @@ Open Fahrenheit's settings with **F7**. English and German labels are included.
 - Farplane: long-duration looping, reset and the second teardown path are untested.
 - FocusInput: after returning to the window, release buttons held across the focus change before
   pressing them again. Other buttons and analog movement remain available after the refocus grace.
+  Disabling the setting stops new neutralization; buttons already quarantined still require release.
   VRR input replay temporarily yields to native publication while those buttons are rearming.
   A failed DirectInput device must supply a matching successful read before its prior held buttons
   can rearm; reconnect/disposal behavior still needs native validation. The focus-rearm repair is

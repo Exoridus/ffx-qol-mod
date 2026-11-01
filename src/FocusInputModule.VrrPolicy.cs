@@ -92,11 +92,10 @@ public unsafe sealed partial class FocusInputModule
         lock (_focusPolicyGate)
         {
             bool neutralized = observe_focus_policy(WindowOwnsInput(), _neutralize.get());
-            if (!_focusPolicyEnabled) return;
             // Publication may reread our own zeroes; only a native refresh can confirm release.
             if (neutralized || _focusRearmPending)
                 set_blocked_buttons(port, _focusBlockedButtons[port] | buttons);
-            else if (_focusInvalidDeviceReads.Count == 0)
+            else if (_focusPolicyFocused && _refocus_grace == 0 && _focusInvalidDeviceReads.Count == 0)
                 set_blocked_buttons(port, _focusBlockedButtons[port] & buttons);
         }
     }
@@ -104,7 +103,7 @@ public unsafe sealed partial class FocusInputModule
     private bool focus_button_observation_required()
     {
         lock (_focusPolicyGate)
-            return _focusRearmPending || _focusInvalidDeviceReads.Count != 0
+            return _focusRearmPending || _neutralize.get() && _focusInvalidDeviceReads.Count != 0
                 || Array.Exists(_focusBlockedButtons, mask => mask != 0);
     }
 
@@ -192,7 +191,6 @@ public unsafe sealed partial class FocusInputModule
         else if (!enabled)
         {
             if (_focusRearmPending) { _focusRearmPending = false; _focusPolicyGeneration++; }
-            for (int port = 0; port < EngineAddresses.PadRecordCount; port++) set_blocked_buttons(port, 0);
         }
         return neutralized;
     }

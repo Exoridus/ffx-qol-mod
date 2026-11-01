@@ -3,10 +3,13 @@ using Xunit;
 
 public sealed class FocusInputNativeTests
 {
-    [Fact]
-    public unsafe void UnrelatedDeviceSuccessCannotClearFailedDeviceButMatchingRecoveryAllowsRelease()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public unsafe void UnrelatedDeviceSuccessCannotClearFailedDeviceButMatchingRecoveryAllowsRelease(bool enabled)
     {
         var module = Blocked(0);
+        module.Enabled = enabled;
         byte* devices = stackalloc byte[2 * 0x3a8];
         new Span<byte>(devices, 2 * 0x3a8).Clear();
         nint* table = stackalloc nint[10];
@@ -21,7 +24,7 @@ public sealed class FocusInputNativeTests
         NativeDeviceFixture.NativePublish = _ => { };
         module.DevicePoll((nint)devices);
         NativeDeviceFixture.Result = 0;
-        NativeDeviceFixture.NativePoll = _ => { };
+        NativeDeviceFixture.NativePoll = ptr => *((byte*)ptr + 0x3a4) = 0;
         module.DevicePoll((nint)(devices + 0x3a8));
         module.Poll(0, 0);
         Assert.False(module.TryGetVrrInputPolicy(1, out _, out _));

@@ -138,16 +138,42 @@ public sealed class FocusInputRearmTests
     }
 
     [Fact]
-    public void DisabledPolicyReturnsNativeInputAndInvalidatesPriorOwnership()
+    public void DisablingDuringQuarantineCannotTurnContinuousHoldIntoFreshPress()
     {
         var module = RefocusWithHold(0, 0x800);
         module.TryGetVrrInputPolicy(1, out long blocked, out _);
+        bool previous = false;
+        int freshPresses = 0;
+        module.Native = () =>
+        {
+            bool held = (module.Buttons[0] & 0x800) != 0;
+            if (held && !previous) freshPresses++;
+            previous = held;
+        };
         module.Enabled = false;
         module.Poll(0, 0x800);
         module.Publish();
-        Assert.Equal(0x800u, module.Buttons[0]);
-        Assert.True(module.TryGetVrrInputPolicy(1, out long disabled, out _));
+        Assert.Equal(0, freshPresses);
+        Assert.False(module.TryGetVrrInputPolicy(1, out long disabled, out _));
         Assert.True(disabled > blocked);
+        module.Poll(0, 0);
+        module.Publish();
+        Assert.True(module.TryGetVrrInputPolicy(1, out _, out _));
+        module.Poll(0, 0x800);
+        module.Publish();
+        Assert.Equal(1, freshPresses);
+    }
+
+    [Fact]
+    public void DisabledWithoutPriorQuarantinePreservesNativeInputWhileUnfocused()
+    {
+        var module = new FocusInputModule { Enabled = false, Focused = false };
+        module.Ready();
+        module.Poll(0, 0x08000800);
+        module.Publish();
+        Assert.Equal(0x08000800u, module.Buttons[0]);
+        Assert.True(module.TryGetVrrInputPolicy(1, out _, out bool neutralized));
+        Assert.False(neutralized);
     }
 
     private static FocusInputModule RefocusWithHold(int port, uint buttons)
